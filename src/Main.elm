@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Browser
 import Browser.Events as BrowserEvent
@@ -10,10 +10,34 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Decode as Decode
 import Simple.Transition as Transition
-import Task
 import Theme
 import Time
 import Util
+
+
+
+-- MAIN
+
+
+main : Program Int Model Msg
+main =
+    Browser.element
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = subscriptions
+        }
+
+
+
+-- PORTS
+
+
+port scrollToID : String -> Cmd msg
+
+
+
+-- MODEL
 
 
 typewrittenTexts : List (List TypewriterBlock)
@@ -32,7 +56,6 @@ type alias Model =
     , typewriteStatus : List TypewriterFragment
     , typewriterSpeed : TypewriterSpeed
     , isTypewritingComplete : Bool
-    , isTerminalFullscreen : Bool
     }
 
 
@@ -86,50 +109,21 @@ cutTypewriterText ( limit, frags ) =
         |> Tuple.first
 
 
-type Msg
-    = TypewriterTick
-    | SpeedUp
-
-
-main : Program Int Model Msg
-main =
-    Browser.element
-        { init = init
-        , update = update
-        , view = view
-        , subscriptions = subscriptions
-        }
-
-
 init : Int -> ( Model, Cmd msg )
 init height =
-    ( Model Theme.light height (List.map (\p -> ( 0, p )) typewrittenTexts) Normal False True
+    ( Model Theme.light height (List.map (\p -> ( 0, p )) typewrittenTexts) Normal False
     , Cmd.none
     )
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    let
-        speedInMs =
-            case model.typewriterSpeed of
-                Fastest ->
-                    8
 
-                Fast ->
-                    25
+-- UPDATE
 
-                Normal ->
-                    85
-    in
-    Sub.batch
-        [ if not model.isTypewritingComplete then
-            Time.every speedInMs (\_ -> TypewriterTick)
 
-          else
-            Sub.none
-        , BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
-        ]
+type Msg
+    = TypewriterTick
+    | SpeedUp
+    | UpdateViewportHeight Int
 
 
 
@@ -184,11 +178,47 @@ update msg model =
                             { model | typewriterSpeed = Fastest }
 
                         Fastest ->
-                            { model | typewriteStatus = model.typewriteStatus |> List.map (\( _, p ) -> ( fragmentListLength p, p )), isTypewritingComplete = True, isTerminalFullscreen = not model.isTypewritingComplete }
+                            { model | typewriteStatus = model.typewriteStatus |> List.map (\( _, p ) -> ( fragmentListLength p, p )), isTypewritingComplete = True }
             in
             ( newModel
-            , Cmd.none
+            , if newModel.isTypewritingComplete then
+                scrollToID recentWorkId
+
+              else
+                Cmd.none
             )
+
+        UpdateViewportHeight newHeight ->
+            ( { model | viewportHeight = newHeight }, Cmd.none )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    let
+        speedInMs =
+            case model.typewriterSpeed of
+                Fastest ->
+                    8
+
+                Fast ->
+                    25
+
+                Normal ->
+                    85
+    in
+    Sub.batch
+        [ if not model.isTypewritingComplete then
+            Time.every speedInMs (\_ -> TypewriterTick)
+
+          else
+            Sub.none
+        , BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
+        , BrowserEvent.onResize (\_ -> UpdateViewportHeight)
+        ]
 
 
 
@@ -205,6 +235,14 @@ roboto =
     Font.family [ Font.typeface "Roboto", Font.monospace ]
 
 
+noopAttr =
+    rotate 0
+
+
+recentWorkId =
+    "recent-work"
+
+
 
 -- | example use: el [ transition [ Transition.color, Transition.backgroundColor ] ]
 
@@ -217,8 +255,17 @@ transition =
 view : Model -> Html Msg
 view model =
     layout [ montserrat, Background.color model.theme.background, Font.color model.theme.text ] <|
-        row [ width fill, height fill ]
+        column
+            [ width fill
+            , height (px model.viewportHeight)
+            , if model.isTypewritingComplete then
+                noopAttr
+
+              else
+                clip
+            ]
             [ terminal model
+            , column [ htmlAttribute (Attr.id recentWorkId), Background.color model.theme.hyperlink, height (px model.viewportHeight), width fill ] []
             ]
 
 
