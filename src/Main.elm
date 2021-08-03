@@ -235,10 +235,12 @@ roboto =
     Font.family [ Font.typeface "Roboto", Font.monospace ]
 
 
+noopAttr : Attr decorative msg
 noopAttr =
     rotate 0
 
 
+recentWorkId : String
 recentWorkId =
     "recent-work"
 

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "snowpack dev",
     "build": "snowpack build",
-    "bump": "standard-version --skip.tag"
+    "bump": "standard-version --skip.tag",
+    "commit": "git add --all && cz"
   },
   "keywords": [],
   "author": "",
