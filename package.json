@@ -13,7 +13,7 @@
   "devDependencies": {
     "commitizen": "^4.2.4",
     "cz-conventional-changelog": "^3.2.0",
-    "elm": "*",
+    "elm": "^0.19.1-5",
     "postcss": "^8.3.5",
     "snowpack": "^3.5.9",
     "snowpack-plugin-elm": "^0.4.3",
