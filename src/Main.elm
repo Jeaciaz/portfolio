@@ -10,7 +10,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Decode as Decode
 import Simple.Transition as Transition
-import Theme
+import Theme exposing (Theme)
 import Time
 import Util
 
@@ -34,6 +34,9 @@ main =
 
 
 port scrollToID : String -> Cmd msg
+
+
+port toggleScrollLock : Bool -> Cmd msg
 
 
 
@@ -112,7 +115,7 @@ cutTypewriterText ( limit, frags ) =
 init : Int -> ( Model, Cmd msg )
 init height =
     ( Model Theme.light height (List.map (\p -> ( 0, p )) typewrittenTexts) Normal False
-    , Cmd.none
+    , toggleScrollLock True
     )
 
 
@@ -182,7 +185,10 @@ update msg model =
             in
             ( newModel
             , if newModel.isTypewritingComplete then
-                scrollToID recentWorkId
+                Cmd.batch
+                    [ scrollToID recentWorkId
+                    , toggleScrollLock False
+                    ]
 
               else
                 Cmd.none
@@ -259,7 +265,6 @@ view model =
     layout [ montserrat, Background.color model.theme.background, Font.color model.theme.text ] <|
         column
             [ width fill
-            , height (px model.viewportHeight)
             , if model.isTypewritingComplete then
                 noopAttr
 
@@ -291,10 +296,10 @@ terminal model =
                             paragraph []
                                 ((ttext
                                     |> cutTypewriterText
-                                    |> List.map (renderTypewriterFragment model)
+                                    |> List.map (renderTypewriterFragment model.theme)
                                  )
                                     ++ [ if Tuple.first ttext < (fragmentListLength <| Tuple.second ttext) then
-                                            caret model
+                                            caret model.theme
 
                                          else
                                             none
@@ -322,40 +327,40 @@ terminal model =
                                             Fastest ->
                                                 "skip"
                                    )
-                        , caret model
+                        , caret model.theme
                         ]
                    ]
         ]
 
 
-renderTypewriterFragment : Model -> TypewriterBlock -> Element Msg
-renderTypewriterFragment model frag =
+renderTypewriterFragment : Theme -> TypewriterBlock -> Element Msg
+renderTypewriterFragment theme frag =
     case frag of
         Text t ->
             text t
 
         Link href t ->
-            newTabLink [] { url = href, label = a model t }
+            newTabLink [] { url = href, label = a theme t }
 
 
-caret : Model -> Element Msg
-caret model =
-    el [ Background.color model.theme.background, Font.color <| rgba 0 0 0 0, htmlAttribute (Attr.style "user-select" "none") ] <| text "m"
+caret : Theme -> Element Msg
+caret theme =
+    el [ Background.color theme.background, Font.color <| rgba 0 0 0 0, htmlAttribute (Attr.style "user-select" "none") ] <| text "m"
 
 
-h1 : Model -> Element Msg -> Element Msg
+h1 : Theme -> Element Msg -> Element Msg
 h1 _ =
     el [ Region.heading 1, Font.size 30, Font.semiBold, roboto ]
 
 
-h2 : Model -> Element Msg -> Element Msg
+h2 : Theme -> Element Msg -> Element Msg
 h2 _ =
     el [ Region.heading 2, Font.size 24, Font.semiBold, roboto ]
 
 
-a : Model -> String -> Element Msg
-a model label =
+a : Theme -> String -> Element Msg
+a theme label =
     label
         |> text
         |> el
-            [ Font.underline, Font.semiBold, mouseOver [ Font.color model.theme.secondary ], transition [ Transition.color ] ]
+            [ Font.underline, Font.semiBold, mouseOver [ Font.color theme.secondary ], transition [ Transition.color ] ]
