@@ -4,6 +4,7 @@ import Browser
 import Browser.Events as BrowserEvent
 import Element exposing (..)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Region as Region
 import Html exposing (Html)
@@ -48,8 +49,29 @@ typewrittenTexts =
     [ [ Text "Hello there!" ]
     , [ Text "My name is Sergei Knyazev. I am a passionate frontend developer who loves delivering top-quality web applications and takes pride in his work." ]
     , [ Text "I primarily work in React and Typescript, but outside of my full-time job I love using functional languages with sound type systems, such as Elm or Haskell. In fact, this very website has been "
-      , Link "https://github.com" "written in Elm!"
+      , Link "https://github.com/Jeaciaz/portfolio" "written in Elm!"
       ]
+    ]
+
+
+cards : List CardInfo
+cards =
+    [ { title = "Restaurant list"
+      , href = "https://github.com/Jeaciaz/restaurant-list"
+      , desc = "Just a regular table with a list of Moscow restaurants recommended by a colleague of mine."
+      , techStack =
+            [ "HTML + CSS (Bootstrap)"
+            , "Vanilla JS"
+            ]
+      }
+    , { title = "Restaurant list"
+      , href = "https://github.com/Jeaciaz/restaurant-list"
+      , desc = "Just a regular table with a list of Moscow restaurants recommended by a colleague of mine."
+      , techStack =
+            [ "HTML + CSS (Bootstrap)"
+            , "Vanilla JS"
+            ]
+      }
     ]
 
 
@@ -79,6 +101,14 @@ type TypewriterSpeed
     = Normal
     | Fast
     | Fastest
+
+
+type alias CardInfo =
+    { title : String
+    , href : String
+    , desc : String
+    , techStack : List String
+    }
 
 
 fragmentLength : TypewriterBlock -> Int
@@ -127,10 +157,6 @@ type Msg
     = TypewriterTick
     | SpeedUp
     | UpdateViewportHeight Int
-
-
-
--- UPDATE
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -255,7 +281,7 @@ recentWorkId =
 -- | example use: el [ transition [ Transition.color, Transition.backgroundColor ] ]
 
 
-transition : List (Transition.Millis -> List Transition.Option -> Transition.Property) -> Attribute Msg
+transition : List (Transition.Millis -> List Transition.Option -> Transition.Property) -> Attribute msg
 transition =
     Transition.all { duration = 100, options = [ Transition.easeInOut ] } >> htmlAttribute
 
@@ -272,7 +298,23 @@ view model =
                 clip
             ]
             [ terminal model
-            , column [ htmlAttribute (Attr.id recentWorkId), Background.color model.theme.hyperlink, height (px model.viewportHeight), width fill ] []
+            , column [ htmlAttribute (Attr.id recentWorkId), Background.color model.theme.background, height (px model.viewportHeight), width fill ]
+                [ column
+                    [ alignTop
+                    , centerX
+                    , paddingEach { top = 80, right = 0, bottom = 0, left = 0 }
+                    , spacing 12
+                    ]
+                    [ el
+                        [ Font.color model.theme.primary
+                        , centerX
+                        ]
+                        (h2 model.theme (text "My recent work"))
+                    , paragraph [] [ text "My GitHub doesn’t have much activity due to my work being mostly on my day job. These are things I made in my free time that I don’t consider obsolete." ]
+                    ]
+                , row [ centerX, centerY, spacing 48 ] <| List.map (card model.theme) cards
+                , footer model.theme
+                ]
             ]
 
 
@@ -340,27 +382,84 @@ renderTypewriterFragment theme frag =
             text t
 
         Link href t ->
-            newTabLink [] { url = href, label = a theme t }
+            newTabLink [] { url = href, label = a theme.secondary theme.hyperlink t }
 
 
-caret : Theme -> Element Msg
+card : Theme -> CardInfo -> Element Msg
+card theme { title, href, desc, techStack } =
+    column
+        [ width (px 332)
+        , Background.color theme.white
+        , Border.rounded 8
+        , Border.shadow { offset = ( 2.0, 2.0 ), size = 1.0, blur = 4.0, color = theme.text |> Theme.addOpacity 0.5 }
+        ]
+        [ el
+            [ width fill
+            , paddingEach { top = 24, right = 24, bottom = 12, left = 24 }
+            , Border.widthEach { top = 0, right = 0, bottom = 1, left = 0 }
+            , Border.color theme.background
+            ]
+          <|
+            newTabLink
+                [ centerX
+                , Font.size 24
+                , Font.semiBold
+                , montserrat
+                ]
+                { url = href, label = a theme.hyperlink theme.secondary title }
+        , el [ paddingXY 24 12 ] <| paragraph [] [ text desc ]
+        , column [ paddingEach { top = 12, right = 24, bottom = 24, left = 24 } ] <|
+            List.map (\techStackEntry -> paragraph [] [ text <| "➤ " ++ techStackEntry ]) techStack
+        ]
+
+
+footer : Theme -> Element msg
+footer theme =
+    let
+        largeFontSize : Int
+        largeFontSize =
+            30
+
+        imgLink : String -> String -> String -> Element msg
+        imgLink url src description =
+            newTabLink [] { url = url, label = image [ height (px largeFontSize) ] { src = src, description = description } }
+    in
+    column
+        [ width fill
+        , paddingXY 48 40
+        , spacing 24
+        , Background.color theme.primary
+        , Font.color theme.background
+        ]
+        [ text "If you want to see something done by me or wish to cooperate in other ways,"
+        , row [ spacing 12 ]
+            [ el [ Font.size 30 ] (text "Contact me via: ")
+            , imgLink "mailto:kniazevs.v@yandex.ru" "/assets/icon-mail.svg" "E-Mail"
+            , imgLink "https://linkedin.com" "/assets/icon-linkedin.png" "LinkedIn"
+            , imgLink "https://github.com/Jeaciaz" "/assets/icon-github.png" "GitHub"
+            , imgLink "https://t.me/Jeaciaz" "/assets/icon-telegram.svg" "Telegram"
+            ]
+        ]
+
+
+caret : Theme -> Element msg
 caret theme =
     el [ Background.color theme.background, Font.color <| rgba 0 0 0 0, htmlAttribute (Attr.style "user-select" "none") ] <| text "m"
 
 
-h1 : Theme -> Element Msg -> Element Msg
-h1 _ =
-    el [ Region.heading 1, Font.size 30, Font.semiBold, roboto ]
-
-
-h2 : Theme -> Element Msg -> Element Msg
+h2 : Theme -> Element msg -> Element msg
 h2 _ =
-    el [ Region.heading 2, Font.size 24, Font.semiBold, roboto ]
+    el [ Region.heading 2, Font.size 30, Font.semiBold, roboto ]
 
 
-a : Theme -> String -> Element Msg
-a theme label =
+h3 : Theme -> Element msg -> Element msg
+h3 _ =
+    el [ Region.heading 3, Font.size 24, Font.semiBold, roboto ]
+
+
+a : Color -> Color -> String -> Element msg
+a colorIdle colorHovered label =
     label
         |> text
         |> el
-            [ Font.underline, Font.semiBold, mouseOver [ Font.color theme.secondary ], transition [ Transition.color ] ]
+            [ Font.underline, Font.semiBold, Font.color colorIdle, mouseOver [ Font.color colorHovered ], transition [ Transition.color ] ]

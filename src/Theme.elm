@@ -9,6 +9,7 @@ type alias Theme =
     , hyperlink : Color
     , primary : Color
     , secondary : Color
+    , white : Color
     }
 
 
@@ -19,6 +20,7 @@ light =
     , hyperlink = rgb255 47 87 93 -- #2f575d
     , primary = rgb255 101 139 111 -- #658b6f
     , secondary = rgb255 109 145 151 -- #6d9197
+    , white = rgb255 255 255 255 -- #ffffff
     }
 
 
