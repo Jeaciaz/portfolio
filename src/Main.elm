@@ -5,13 +5,14 @@ import Browser.Events as BrowserEvent
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events as Events
 import Element.Font as Font
 import Element.Region as Region
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Decode as Decode
 import Simple.Transition as Transition
-import Theme exposing (Theme)
+import Theme
 import Time
 import Util
 
@@ -20,7 +21,7 @@ import Util
 -- MAIN
 
 
-main : Program Int Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -40,6 +41,9 @@ port scrollToID : String -> Cmd msg
 port toggleScrollLock : Bool -> Cmd msg
 
 
+port setVisited : () -> Cmd msg
+
+
 
 -- MODEL
 
@@ -57,22 +61,32 @@ typewrittenTexts =
 cards : List CardInfo
 cards =
     [ { title = "Restaurant list"
-      , href = "https://github.com/Jeaciaz/restaurant-list"
-      , desc = "Just a regular table with a list of Moscow restaurants recommended by a colleague of mine."
+      , href = "https://restaurant.jeaciaz.dev/"
+      , githubHref = "https://github.com/Jeaciaz/restaurant-list"
+      , desc = "A simplistic table with a list of Moscow restaurants recommended by a colleague of mine."
       , techStack =
             [ "HTML + CSS (Bootstrap)"
             , "Vanilla JS"
             ]
       }
-    , { title = "Restaurant list"
-      , href = "https://github.com/Jeaciaz/restaurant-list"
-      , desc = "Just a regular table with a list of Moscow restaurants recommended by a colleague of mine."
+    , { title = "Auth mocker"
+      , href = "https://auth-mocker.jeaciaz.dev/"
+      , githubHref = "https://github.com/Jeaciaz/auth-mocker"
+      , desc = "Implementation of an auth form design I found exciting."
       , techStack =
-            [ "HTML + CSS (Bootstrap)"
-            , "Vanilla JS"
+            [ "React"
+            , "Typescript"
+            , "PostCSS Modules"
+            , "Vite"
             ]
       }
     ]
+
+
+type TypewritingCompletionStatus
+    = Incomplete
+    | AwaitingKeypress
+    | Complete
 
 
 type alias Model =
@@ -80,8 +94,13 @@ type alias Model =
     , viewportHeight : Int
     , typewriteStatus : List TypewriterFragment
     , typewriterSpeed : TypewriterSpeed
-    , isTypewritingComplete : Bool
+    , typewritingCompletion : TypewritingCompletionStatus
+    , deviceClass : DeviceClass
     }
+
+
+type alias Flags =
+    { innerHeight : Int, innerWidth : Int, isVisited : Bool }
 
 
 type alias Href =
@@ -106,6 +125,7 @@ type TypewriterSpeed
 type alias CardInfo =
     { title : String
     , href : String
+    , githubHref : String
     , desc : String
     , techStack : List String
     }
@@ -142,11 +162,17 @@ cutTypewriterText ( limit, frags ) =
         |> Tuple.first
 
 
-init : Int -> ( Model, Cmd msg )
-init height =
-    ( Model Theme.light height (List.map (\p -> ( 0, p )) typewrittenTexts) Normal False
-    , toggleScrollLock True
-    )
+init : Flags -> ( Model, Cmd msg )
+init { innerHeight, innerWidth, isVisited } =
+    if isVisited then
+        ( Model Theme.light innerHeight (List.map (\block -> ( fragmentListLength block, block )) typewrittenTexts) Normal Complete (.class <| classifyDevice { width = innerWidth, height = innerHeight })
+        , Cmd.none
+        )
+
+    else
+        ( Model Theme.light innerHeight (List.map (\p -> ( 0, p )) typewrittenTexts) Normal Incomplete (.class <| classifyDevice { width = innerWidth, height = innerHeight })
+        , toggleScrollLock True
+        )
 
 
 
@@ -156,7 +182,7 @@ init height =
 type Msg
     = TypewriterTick
     | SpeedUp
-    | UpdateViewportHeight Int
+    | UpdateViewport Int Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -191,7 +217,12 @@ update msg model =
             ( { model
                 | typewriteStatus =
                     completed ++ updatedUncompleted
-                , isTypewritingComplete = isDone
+                , typewritingCompletion =
+                    if isDone then
+                        AwaitingKeypress
+
+                    else
+                        Incomplete
               }
             , Cmd.none
             )
@@ -199,20 +230,33 @@ update msg model =
         SpeedUp ->
             let
                 newModel =
-                    case model.typewriterSpeed of
-                        Normal ->
+                    case ( model.typewritingCompletion, model.typewriterSpeed ) of
+                        ( AwaitingKeypress, _ ) ->
+                            { model | typewritingCompletion = Complete }
+
+                        ( _, Normal ) ->
                             { model | typewriterSpeed = Fast }
 
-                        Fast ->
+                        ( _, Fast ) ->
                             { model | typewriterSpeed = Fastest }
 
-                        Fastest ->
-                            { model | typewriteStatus = model.typewriteStatus |> List.map (\( _, p ) -> ( fragmentListLength p, p )), isTypewritingComplete = True }
+                        ( _, Fastest ) ->
+                            { model
+                                | typewriteStatus = model.typewriteStatus |> List.map (\( _, p ) -> ( fragmentListLength p, p ))
+                                , typewritingCompletion =
+                                    case model.typewritingCompletion of
+                                        Incomplete ->
+                                            AwaitingKeypress
+
+                                        _ ->
+                                            Complete
+                            }
             in
             ( newModel
-            , if newModel.isTypewritingComplete then
+            , if newModel.typewritingCompletion == Complete then
                 Cmd.batch
                     [ scrollToID recentWorkId
+                    , setVisited ()
                     , toggleScrollLock False
                     ]
 
@@ -220,8 +264,8 @@ update msg model =
                 Cmd.none
             )
 
-        UpdateViewportHeight newHeight ->
-            ( { model | viewportHeight = newHeight }, Cmd.none )
+        UpdateViewport newWidth newHeight ->
+            ( { model | viewportHeight = newHeight, deviceClass = .class <| classifyDevice { width = newWidth, height = newHeight } }, Cmd.none )
 
 
 
@@ -243,13 +287,19 @@ subscriptions model =
                     85
     in
     Sub.batch
-        [ if not model.isTypewritingComplete then
-            Time.every speedInMs (\_ -> TypewriterTick)
+        [ case model.typewritingCompletion of
+            Incomplete ->
+                Sub.batch
+                    [ Time.every speedInMs (\_ -> TypewriterTick)
+                    , BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
+                    ]
 
-          else
-            Sub.none
-        , BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
-        , BrowserEvent.onResize (\_ -> UpdateViewportHeight)
+            AwaitingKeypress ->
+                BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
+
+            Complete ->
+                Sub.none
+        , BrowserEvent.onResize UpdateViewport
         ]
 
 
@@ -288,38 +338,56 @@ transition =
 
 view : Model -> Html Msg
 view model =
-    layout [ montserrat, Background.color model.theme.background, Font.color model.theme.text ] <|
+    layout
+        [ montserrat
+        , Font.size (Theme.fontSizeText model.deviceClass)
+        , Background.color
+            model.theme.background
+        , Font.color model.theme.text
+        ]
+    <|
         column
             [ width fill
-            , if model.isTypewritingComplete then
+            , height fill
+            , if model.typewritingCompletion == Complete then
                 noopAttr
 
               else
                 clip
             ]
-            [ terminal model
-            , column [ htmlAttribute (Attr.id recentWorkId), Background.color model.theme.background, height (px model.viewportHeight), width fill ]
+            [ viewTerminal model
+            , column
+                [ htmlAttribute (Attr.id recentWorkId)
+                , height
+                    (if model.deviceClass == Phone then
+                        fill
+
+                     else
+                        fill |> minimum model.viewportHeight
+                    )
+                , width fill
+                ]
                 [ column
                     [ alignTop
                     , centerX
-                    , paddingEach { top = 80, right = 0, bottom = 0, left = 0 }
+                    , paddingEach { top = 80, right = 24, bottom = 12, left = 24 }
                     , spacing 12
                     ]
                     [ el
                         [ Font.color model.theme.primary
                         , centerX
                         ]
-                        (h2 model.theme (text "My recent work"))
+                        (viewH2 model (text "My recent work"))
                     , paragraph [] [ text "My GitHub doesn’t have much activity due to my work being mostly on my day job. These are things I made in my free time that I don’t consider obsolete." ]
                     ]
-                , row [ centerX, centerY, spacing 48 ] <| List.map (card model.theme) cards
-                , footer model.theme
+                , wrappedRow [ clip, centerX, centerY, spacing 24 ] <| List.map (viewCard model) cards
+                , viewFooter model
                 ]
             ]
 
 
-terminal : Model -> Element Msg
-terminal model =
+viewTerminal : Model -> Element Msg
+viewTerminal model =
     column
         [ width fill
         , height <| px model.viewportHeight
@@ -329,8 +397,9 @@ terminal model =
         , Font.family [ Font.typeface "Source Code Pro", Font.monospace ]
         , Font.bold
         , Background.color model.theme.text
+        , Events.onClick SpeedUp
         ]
-        [ column [ centerX, centerY, width (fill |> maximum 800), height (fill |> maximum 600), spacing 24 ] <|
+        [ column [ centerX, centerY, width (fill |> maximum 640), height (fill |> maximum 480), spacing 24 ] <|
             List.filterMap
                 (\ttext ->
                     if Tuple.first ttext /= 0 then
@@ -338,10 +407,10 @@ terminal model =
                             paragraph []
                                 ((ttext
                                     |> cutTypewriterText
-                                    |> List.map (renderTypewriterFragment model.theme)
+                                    |> List.map (viewTypewriterFragment model)
                                  )
                                     ++ [ if Tuple.first ttext < (fragmentListLength <| Tuple.second ttext) then
-                                            caret model.theme
+                                            viewCaret model
 
                                          else
                                             none
@@ -352,69 +421,76 @@ terminal model =
                         Nothing
                 )
                 model.typewriteStatus
-                ++ [ paragraph [ paddingXY 0 24 ]
-                        [ text <|
-                            "Press any key to "
-                                ++ (if model.isTypewritingComplete then
-                                        "continue"
+                ++ [ if model.typewritingCompletion == Complete then
+                        none
 
-                                    else
-                                        case model.typewriterSpeed of
-                                            Normal ->
-                                                "speed up"
+                     else
+                        paragraph [ paddingXY 0 24 ]
+                            [ text <|
+                                "Press any key to "
+                                    ++ (if model.typewritingCompletion == AwaitingKeypress then
+                                            "continue"
 
-                                            Fast ->
-                                                "speed up again"
+                                        else
+                                            case model.typewriterSpeed of
+                                                Normal ->
+                                                    "speed up"
 
-                                            Fastest ->
-                                                "skip"
-                                   )
-                        , caret model.theme
-                        ]
+                                                Fast ->
+                                                    "speed up again"
+
+                                                Fastest ->
+                                                    "skip"
+                                       )
+                            , viewCaret model
+                            ]
                    ]
         ]
 
 
-renderTypewriterFragment : Theme -> TypewriterBlock -> Element Msg
-renderTypewriterFragment theme frag =
+viewTypewriterFragment : Model -> TypewriterBlock -> Element Msg
+viewTypewriterFragment { theme } frag =
     case frag of
         Text t ->
             text t
 
         Link href t ->
-            newTabLink [] { url = href, label = a theme.secondary theme.hyperlink t }
+            newTabLink [] { url = href, label = viewLink theme.secondary theme.hyperlink t }
 
 
-card : Theme -> CardInfo -> Element Msg
-card theme { title, href, desc, techStack } =
-    column
-        [ width (px 332)
-        , Background.color theme.white
-        , Border.rounded 8
-        , Border.shadow { offset = ( 2.0, 2.0 ), size = 1.0, blur = 4.0, color = theme.text |> Theme.addOpacity 0.5 }
-        ]
-        [ el
-            [ width fill
-            , paddingEach { top = 24, right = 24, bottom = 12, left = 24 }
-            , Border.widthEach { top = 0, right = 0, bottom = 1, left = 0 }
-            , Border.color theme.background
+viewCard : Model -> CardInfo -> Element Msg
+viewCard { theme, deviceClass } { title, href, githubHref, desc, techStack } =
+    el [ padding 12, width (fillPortion 1 |> maximum 400), height fill ] <|
+        column
+            [ height fill
+            , Background.color theme.white
+            , Border.rounded 8
+            , Border.shadow { offset = ( 2.0, 2.0 ), size = 1.0, blur = 4.0, color = theme.text |> Theme.addOpacity 0.5 }
             ]
-          <|
-            newTabLink
-                [ centerX
-                , Font.size 24
-                , Font.semiBold
-                , montserrat
+            [ paragraph
+                [ Font.center
+                , spacing 8
+                , paddingEach { top = 24, right = 24, bottom = 12, left = 24 }
+                , Border.widthEach { top = 0, right = 0, bottom = 1, left = 0 }
+                , Border.color theme.background
                 ]
-                { url = href, label = a theme.hyperlink theme.secondary title }
-        , el [ paddingXY 24 12 ] <| paragraph [] [ text desc ]
-        , column [ paddingEach { top = 12, right = 24, bottom = 24, left = 24 } ] <|
-            List.map (\techStackEntry -> paragraph [] [ text <| "➤ " ++ techStackEntry ]) techStack
-        ]
+                [ newTabLink
+                    [ Font.size <| Theme.fontSizeH3 deviceClass
+                    , Font.semiBold
+                    , montserrat
+                    ]
+                    { url = href, label = viewLink theme.hyperlink theme.secondary title }
+                , text " "
+                , newTabLink [] { url = githubHref, label = image [ height (px (Theme.fontSizeH3 deviceClass * 3 // 4)) ] { src = "/assets/icon-github.png", description = "Link to GitHub" } }
+                ]
+            , el [ paddingXY 24 12 ] <| paragraph [] [ text desc ]
+            , column [ paddingEach { top = 12, right = 24, bottom = 24, left = 24 } ] <|
+                List.map (\techStackEntry -> paragraph [] [ text <| "➤ " ++ techStackEntry ]) techStack
+            ]
 
 
-footer : Theme -> Element msg
-footer theme =
+viewFooter : Model -> Element msg
+viewFooter { theme, deviceClass } =
     let
         largeFontSize : Int
         largeFontSize =
@@ -431,34 +507,36 @@ footer theme =
         , Background.color theme.primary
         , Font.color theme.background
         ]
-        [ text "If you want to see something done by me or wish to cooperate in other ways,"
-        , row [ spacing 12 ]
-            [ el [ Font.size 30 ] (text "Contact me via: ")
-            , imgLink "mailto:kniazevs.v@yandex.ru" "/assets/icon-mail.svg" "E-Mail"
-            , imgLink "https://linkedin.com" "/assets/icon-linkedin.png" "LinkedIn"
-            , imgLink "https://github.com/Jeaciaz" "/assets/icon-github.png" "GitHub"
-            , imgLink "https://t.me/Jeaciaz" "/assets/icon-telegram.svg" "Telegram"
+        [ paragraph [] [ text "If you want to see something done by me or wish to cooperate in other ways," ]
+        , wrappedRow [ spacing 12 ]
+            [ el [ Font.size (Theme.fontSizeH2 deviceClass) ] (text "Contact me via: ")
+            , row [ spacing 12 ]
+                [ imgLink "mailto:kniazevs.v@yandex.ru" "/assets/icon-mail.svg" "E-Mail"
+                , imgLink "https://linkedin.com" "/assets/icon-linkedin.png" "LinkedIn"
+                , imgLink "https://github.com/Jeaciaz" "/assets/icon-github.png" "GitHub"
+                , imgLink "https://t.me/Jeaciaz" "/assets/icon-telegram.svg" "Telegram"
+                ]
             ]
         ]
 
 
-caret : Theme -> Element msg
-caret theme =
+viewCaret : Model -> Element msg
+viewCaret { theme } =
     el [ Background.color theme.background, Font.color <| rgba 0 0 0 0, htmlAttribute (Attr.style "user-select" "none") ] <| text "m"
 
 
-h2 : Theme -> Element msg -> Element msg
-h2 _ =
-    el [ Region.heading 2, Font.size 30, Font.semiBold, roboto ]
+viewH2 : Model -> Element msg -> Element msg
+viewH2 { deviceClass } =
+    el [ Region.heading 2, Font.size (Theme.fontSizeH2 deviceClass), Font.semiBold, roboto ]
 
 
-h3 : Theme -> Element msg -> Element msg
-h3 _ =
-    el [ Region.heading 3, Font.size 24, Font.semiBold, roboto ]
+viewH3 : Model -> Element msg -> Element msg
+viewH3 { deviceClass } =
+    el [ Region.heading 3, Font.size (Theme.fontSizeH3 deviceClass), Font.semiBold, roboto ]
 
 
-a : Color -> Color -> String -> Element msg
-a colorIdle colorHovered label =
+viewLink : Color -> Color -> String -> Element msg
+viewLink colorIdle colorHovered label =
     label
         |> text
         |> el

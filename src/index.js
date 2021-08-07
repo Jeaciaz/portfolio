@@ -1,8 +1,10 @@
 import Elm from './Main.elm'
 
+var isVisited = localStorage.getItem('__visited') !== null
+
 var app = Elm.Main.init({
-  node: document.getElementById('root'),
-  flags: innerHeight,
+  node: document.documentElement,
+  flags: { innerHeight, innerWidth, isVisited },
 })
 
 app.ports.scrollToID.subscribe(function (id) {
@@ -13,4 +15,9 @@ app.ports.toggleScrollLock.subscribe(function (isLocked) {
   document.documentElement.style.overflowY = isLocked ? 'hidden' : ''
 })
 
-addEventListener('unload', () => scrollTo(0, 0))
+app.ports.setVisited.subscribe(function () {
+  isVisited = true
+  localStorage.setItem('__visited', true)
+})
+
+addEventListener('unload', () => {if (!isVisited) scrollTo(0, 0)})
