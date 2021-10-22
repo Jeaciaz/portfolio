@@ -513,7 +513,7 @@ viewCard { theme, deviceClass } { title, href, githubHref, desc, techStack } =
                     ]
                     { url = href, label = viewLink theme.hyperlink theme.secondary title }
                 , text " "
-                , newTabLink [] { url = githubHref, label = image [ height (px (Theme.fontSizeH3 deviceClass * 3 // 4)) ] { src = "/assets/icon-github.png", description = "Link to GitHub" } }
+                , newTabLink [] { url = githubHref, label = image [ height (px (Theme.fontSizeH3 deviceClass * 3 // 4)) ] { src = "./assets/icon-github.png", description = "Link to GitHub" } }
                 ]
             , el [ paddingXY 24 12 ] <| paragraph [] [ text desc ]
             , column [ paddingEach { top = 12, right = 24, bottom = 24, left = 24 } ] <|
@@ -543,10 +543,10 @@ viewFooter { theme, deviceClass } =
         , wrappedRow [ spacing 12 ]
             [ el [ Font.size (Theme.fontSizeH2 deviceClass) ] (text "Contact me via: ")
             , row [ spacing 12 ]
-                [ imgLink "mailto:kniazevs.v@yandex.ru" "/assets/icon-mail.svg" "E-Mail"
-                , imgLink "https://www.linkedin.com/in/sergei-kniazev-394506210/" "/assets/icon-linkedin.png" "LinkedIn"
-                , imgLink "https://github.com/Jeaciaz" "/assets/icon-github.png" "GitHub"
-                , imgLink "https://t.me/Jeaciaz" "/assets/icon-telegram.svg" "Telegram"
+                [ imgLink "mailto:kniazevs.v@yandex.ru" "./assets/icon-mail.svg" "E-Mail"
+                , imgLink "https://www.linkedin.com/in/sergei-kniazev-394506210/" "./assets/icon-linkedin.png" "LinkedIn"
+                , imgLink "https://github.com/Jeaciaz" "./assets/icon-github.png" "GitHub"
+                , imgLink "https://t.me/Jeaciaz" "./assets/icon-telegram.svg" "Telegram"
                 ]
             ]
         ]
