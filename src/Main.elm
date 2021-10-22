@@ -83,18 +83,17 @@ cards =
     ]
 
 
-type TypewritingCompletionStatus
-    = Incomplete
-    | AwaitingKeypress
-    | Complete
+type TypewriterStatus
+    = Incomplete (List TypewriterFragment)
+    | AwaitingKeypress (List (List TypewriterBlock))
+    | Complete (List (List TypewriterBlock))
 
 
 type alias Model =
     { theme : Theme.Theme
     , viewportHeight : Int
-    , typewriteStatus : List TypewriterFragment
+    , typewriterStatus : TypewriterStatus
     , typewriterSpeed : TypewriterSpeed
-    , typewritingCompletion : TypewritingCompletionStatus
     , deviceClass : DeviceClass
     }
 
@@ -131,8 +130,8 @@ type alias CardInfo =
     }
 
 
-fragmentLength : TypewriterBlock -> Int
-fragmentLength frag =
+typewriterBlockLength : TypewriterBlock -> Int
+typewriterBlockLength frag =
     case frag of
         Link _ str ->
             String.length str
@@ -141,13 +140,13 @@ fragmentLength frag =
             String.length str
 
 
-fragmentListLength : List TypewriterBlock -> Int
-fragmentListLength =
-    List.foldl (fragmentLength >> (+)) 0
+typewriterBlockListLength : List TypewriterBlock -> Int
+typewriterBlockListLength =
+    List.foldl (typewriterBlockLength >> (+)) 0
 
 
-cutTypewriterText : TypewriterFragment -> List TypewriterBlock
-cutTypewriterText ( limit, frags ) =
+cutTypewriterFragment : TypewriterFragment -> List TypewriterBlock
+cutTypewriterFragment ( limit, frags ) =
     Util.mapAcc
         (\frag acc ->
             case frag of
@@ -162,15 +161,20 @@ cutTypewriterText ( limit, frags ) =
         |> Tuple.first
 
 
+unwrapFragments : List TypewriterFragment -> List (List TypewriterBlock)
+unwrapFragments =
+    List.map Tuple.second
+
+
 init : Flags -> ( Model, Cmd msg )
 init { innerHeight, innerWidth, isVisited } =
     if isVisited then
-        ( Model Theme.light innerHeight (List.map (\block -> ( fragmentListLength block, block )) typewrittenTexts) Normal Complete (.class <| classifyDevice { width = innerWidth, height = innerHeight })
+        ( Model Theme.light innerHeight (Complete typewrittenTexts) Normal (.class <| classifyDevice { width = innerWidth, height = innerHeight })
         , Cmd.none
         )
 
     else
-        ( Model Theme.light innerHeight (List.map (\p -> ( 0, p )) typewrittenTexts) Normal Incomplete (.class <| classifyDevice { width = innerWidth, height = innerHeight })
+        ( Model Theme.light innerHeight (Incomplete (List.map (\p -> ( 0, p )) typewrittenTexts)) Normal (.class <| classifyDevice { width = innerWidth, height = innerHeight })
         , toggleScrollLock True
         )
 
@@ -189,50 +193,53 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         TypewriterTick ->
-            let
-                -- separate completed paragraphs and still in progress
-                ( completed, uncompleted ) =
-                    List.partition (\( len, p ) -> len >= fragmentListLength p) model.typewriteStatus
+            case model.typewriterStatus of
+                Incomplete fragments ->
+                    let
+                        -- separate completed paragraphs and still in progress
+                        ( completed, uncompleted ) =
+                            List.partition (\( len, p ) -> len >= typewriterBlockListLength p) fragments
 
-                -- increment the first found incomplete paragraph char count
-                updatedUncompleted =
-                    case uncompleted of
-                        [] ->
-                            []
+                        -- increment the first found incomplete paragraph char count
+                        updatedUncompleted =
+                            case uncompleted of
+                                [] ->
+                                    []
 
-                        ( len, str ) :: tail ->
-                            ( len + 1, str ) :: tail
+                                ( len, str ) :: tail ->
+                                    ( len + 1, str ) :: tail
 
-                isDone =
-                    case updatedUncompleted of
-                        [] ->
-                            True
+                        isDone =
+                            case updatedUncompleted of
+                                [] ->
+                                    True
 
-                        [ ( len, p ) ] ->
-                            len == fragmentListLength p
+                                [ ( len, p ) ] ->
+                                    len == typewriterBlockListLength p
 
-                        _ ->
-                            False
-            in
-            ( { model
-                | typewriteStatus =
-                    completed ++ updatedUncompleted
-                , typewritingCompletion =
-                    if isDone then
-                        AwaitingKeypress
+                                _ ->
+                                    False
+                    in
+                    ( { model
+                        | typewriterStatus =
+                            if isDone then
+                                AwaitingKeypress <| unwrapFragments (completed ++ updatedUncompleted)
 
-                    else
-                        Incomplete
-              }
-            , Cmd.none
-            )
+                            else
+                                Incomplete <| completed ++ updatedUncompleted
+                      }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         SpeedUp ->
             let
                 newModel =
-                    case ( model.typewritingCompletion, model.typewriterSpeed ) of
-                        ( AwaitingKeypress, _ ) ->
-                            { model | typewritingCompletion = Complete }
+                    case ( model.typewriterStatus, model.typewriterSpeed ) of
+                        ( AwaitingKeypress texts, _ ) ->
+                            { model | typewriterStatus = Complete texts }
 
                         ( _, Normal ) ->
                             { model | typewriterSpeed = Fast }
@@ -242,26 +249,29 @@ update msg model =
 
                         ( _, Fastest ) ->
                             { model
-                                | typewriteStatus = model.typewriteStatus |> List.map (\( _, p ) -> ( fragmentListLength p, p ))
-                                , typewritingCompletion =
-                                    case model.typewritingCompletion of
-                                        Incomplete ->
-                                            AwaitingKeypress
+                                | typewriterStatus =
+                                    case model.typewriterStatus of
+                                        Incomplete fragmentList ->
+                                            AwaitingKeypress <| unwrapFragments fragmentList
 
-                                        _ ->
-                                            Complete
+                                        AwaitingKeypress blocks ->
+                                            Complete blocks
+
+                                        Complete blocks ->
+                                            Complete blocks
                             }
             in
             ( newModel
-            , if newModel.typewritingCompletion == Complete then
-                Cmd.batch
-                    [ scrollToID recentWorkId
-                    , setVisited ()
-                    , toggleScrollLock False
-                    ]
+            , case newModel.typewriterStatus of
+                Complete _ ->
+                    Cmd.batch
+                        [ scrollToID recentWorkId
+                        , setVisited ()
+                        , toggleScrollLock False
+                        ]
 
-              else
-                Cmd.none
+                _ ->
+                    Cmd.none
             )
 
         UpdateViewport newWidth newHeight ->
@@ -287,17 +297,17 @@ subscriptions model =
                     85
     in
     Sub.batch
-        [ case model.typewritingCompletion of
-            Incomplete ->
+        [ case model.typewriterStatus of
+            Incomplete _ ->
                 Sub.batch
                     [ Time.every speedInMs (\_ -> TypewriterTick)
                     , BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
                     ]
 
-            AwaitingKeypress ->
+            AwaitingKeypress _ ->
                 BrowserEvent.onKeyPress (Decode.succeed SpeedUp)
 
-            Complete ->
+            Complete _ ->
                 Sub.none
         , BrowserEvent.onResize UpdateViewport
         ]
@@ -315,11 +325,6 @@ montserrat =
 roboto : Attribute msg
 roboto =
     Font.family [ Font.typeface "Roboto", Font.monospace ]
-
-
-noopAttr : Attr decorative msg
-noopAttr =
-    rotate 0
 
 
 recentWorkId : String
@@ -347,14 +352,17 @@ view model =
         ]
     <|
         column
-            [ width fill
-            , height fill
-            , if model.typewritingCompletion == Complete then
-                noopAttr
+            ([ width fill
+             , height fill
+             ]
+                ++ (case model.typewriterStatus of
+                        Complete _ ->
+                            []
 
-              else
-                clip
-            ]
+                        _ ->
+                            [ clip ]
+                   )
+            )
             [ viewTerminal model
             , column
                 [ htmlAttribute (Attr.id recentWorkId)
@@ -389,50 +397,66 @@ view model =
 viewTerminal : Model -> Element Msg
 viewTerminal model =
     column
-        [ width fill
-        , height <| px model.viewportHeight
-        , centerX
-        , padding 24
-        , Font.color model.theme.background
-        , Font.family [ Font.typeface "Source Code Pro", Font.monospace ]
-        , Font.bold
-        , Background.color model.theme.text
-        , Events.onClick SpeedUp
-        ]
+        ([ width fill
+         , height <| px model.viewportHeight
+         , centerX
+         , padding 24
+         , Font.color model.theme.background
+         , Font.family [ Font.typeface "Source Code Pro", Font.monospace ]
+         , Font.bold
+         , Background.color model.theme.primary
+         ]
+            ++ (case model.typewriterStatus of
+                    Complete _ ->
+                        []
+
+                    _ ->
+                        [ Events.onClick SpeedUp ]
+               )
+        )
         [ column [ centerX, centerY, width (fill |> maximum 640), height (fill |> maximum 480), spacing 24 ] <|
-            List.filterMap
-                (\ttext ->
-                    if Tuple.first ttext /= 0 then
-                        Just <|
-                            paragraph []
-                                ((ttext
-                                    |> cutTypewriterText
-                                    |> List.map (viewTypewriterFragment model)
-                                 )
-                                    ++ [ if Tuple.first ttext < (fragmentListLength <| Tuple.second ttext) then
-                                            viewCaret model
+            let
+                visibleBlocks : List ( Bool, List TypewriterBlock )
+                visibleBlocks =
+                    case model.typewriterStatus of
+                        Incomplete frags ->
+                            List.filterMap
+                                (\frag ->
+                                    if Tuple.first frag /= 0 then
+                                        Just ( Tuple.first frag < (typewriterBlockListLength <| Tuple.second frag), cutTypewriterFragment frag )
 
-                                         else
-                                            none
-                                       ]
+                                    else
+                                        Nothing
                                 )
+                                frags
 
-                    else
-                        Nothing
+                        AwaitingKeypress blocks ->
+                            List.map (\block -> ( False, block )) blocks
+
+                        Complete blocks ->
+                            List.map (\block -> ( False, block )) blocks
+            in
+            List.map
+                (\( shouldViewCaret, block ) ->
+                    paragraph []
+                        ((block
+                            |> List.map (viewTypewriterFragment model)
+                         )
+                            ++ [ if shouldViewCaret then
+                                    viewCaret model
+
+                                 else
+                                    none
+                               ]
+                        )
                 )
-                model.typewriteStatus
-                ++ [ if model.typewritingCompletion == Complete then
-                        none
-
-                     else
-                        paragraph [ paddingXY 0 24 ]
-                            [ text <|
-                                "Press any key to "
-                                    ++ (if model.typewritingCompletion == AwaitingKeypress then
-                                            "continue"
-
-                                        else
-                                            case model.typewriterSpeed of
+                visibleBlocks
+                ++ [ paragraph [ paddingXY 0 24 ]
+                        (case model.typewriterStatus of
+                            Incomplete _ ->
+                                [ text
+                                    ("Press any key to "
+                                        ++ (case model.typewriterSpeed of
                                                 Normal ->
                                                     "speed up"
 
@@ -441,9 +465,17 @@ viewTerminal model =
 
                                                 Fastest ->
                                                     "skip"
-                                       )
-                            , viewCaret model
-                            ]
+                                           )
+                                    )
+                                , viewCaret model
+                                ]
+
+                            AwaitingKeypress _ ->
+                                [ text "Press any key to continue", viewCaret model ]
+
+                            Complete _ ->
+                                []
+                        )
                    ]
         ]
 
@@ -455,7 +487,7 @@ viewTypewriterFragment { theme } frag =
             text t
 
         Link href t ->
-            newTabLink [] { url = href, label = viewLink theme.secondary theme.hyperlink t }
+            newTabLink [] { url = href, label = viewLink theme.hyperlink theme.text t }
 
 
 viewCard : Model -> CardInfo -> Element Msg
@@ -512,7 +544,7 @@ viewFooter { theme, deviceClass } =
             [ el [ Font.size (Theme.fontSizeH2 deviceClass) ] (text "Contact me via: ")
             , row [ spacing 12 ]
                 [ imgLink "mailto:kniazevs.v@yandex.ru" "/assets/icon-mail.svg" "E-Mail"
-                , imgLink "https://linkedin.com" "/assets/icon-linkedin.png" "LinkedIn"
+                , imgLink "https://www.linkedin.com/in/sergei-kniazev-394506210/" "/assets/icon-linkedin.png" "LinkedIn"
                 , imgLink "https://github.com/Jeaciaz" "/assets/icon-github.png" "GitHub"
                 , imgLink "https://t.me/Jeaciaz" "/assets/icon-telegram.svg" "Telegram"
                 ]
