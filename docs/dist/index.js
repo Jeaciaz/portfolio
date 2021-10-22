@@ -1,4 +1,4 @@
-import Elm from './Main.elm'
+import Elm from './Main.js'
 
 var isVisited = localStorage.getItem('__visited') !== null
 
