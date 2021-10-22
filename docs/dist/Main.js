@@ -12832,7 +12832,7 @@ var $author$project$Main$viewCard = F2(
 												$mdgriffith$elm_ui$Element$px(
 													(($author$project$Theme$fontSizeH3(deviceClass) * 3) / 4) | 0))
 											]),
-										{bq: 'Link to GitHub', bX: '/assets/icon-github.png'}),
+										{bq: 'Link to GitHub', bX: './assets/icon-github.png'}),
 									aO: githubHref
 								})
 							])),
@@ -13143,10 +13143,10 @@ var $author$project$Main$viewFooter = function (_v0) {
 							]),
 						_List_fromArray(
 							[
-								A3(imgLink, 'mailto:kniazevs.v@yandex.ru', '/assets/icon-mail.svg', 'E-Mail'),
-								A3(imgLink, 'https://www.linkedin.com/in/sergei-kniazev-394506210/', '/assets/icon-linkedin.png', 'LinkedIn'),
-								A3(imgLink, 'https://github.com/Jeaciaz', '/assets/icon-github.png', 'GitHub'),
-								A3(imgLink, 'https://t.me/Jeaciaz', '/assets/icon-telegram.svg', 'Telegram')
+								A3(imgLink, 'mailto:kniazevs.v@yandex.ru', './assets/icon-mail.svg', 'E-Mail'),
+								A3(imgLink, 'https://www.linkedin.com/in/sergei-kniazev-394506210/', './assets/icon-linkedin.png', 'LinkedIn'),
+								A3(imgLink, 'https://github.com/Jeaciaz', './assets/icon-github.png', 'GitHub'),
+								A3(imgLink, 'https://t.me/Jeaciaz', './assets/icon-telegram.svg', 'Telegram')
 							]))
 					]))
 			]));
