@@ -3,7 +3,7 @@ import Elm from './Main.js'
 var isVisited = localStorage.getItem('__visited') !== null
 
 var app = Elm.Main.init({
-  node: document.documentElement,
+  node: document.getElementById('root'),
   flags: { innerHeight, innerWidth, isVisited },
 })
 
