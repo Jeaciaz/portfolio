@@ -17,7 +17,6 @@ module.exports = {
     /* ... */
   },
   buildOptions: {
-    out: "docs",
-    baseUrl: "/portfolio"
+    out: "docs"
   },
 };

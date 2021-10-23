@@ -1,7 +1,6 @@
 module Theme exposing (..)
 
 import Element exposing (..)
-import Html exposing (a)
 
 
 type alias Theme =
