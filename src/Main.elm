@@ -75,7 +75,6 @@ cards =
       , desc = "Implementation of an auth form design I found exciting."
       , techStack =
             [ "React"
-            , "Typescript"
             , "PostCSS Modules"
             , "Vite"
             ]

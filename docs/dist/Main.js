@@ -6242,7 +6242,7 @@ var $author$project$Main$cards = _List_fromArray(
 		ax: 'https://github.com/Jeaciaz/auth-mocker',
 		az: 'https://auth-mocker.jeaciaz.dev/',
 		aJ: _List_fromArray(
-			['React', 'Typescript', 'PostCSS Modules', 'Vite']),
+			['React', 'PostCSS Modules', 'Vite']),
 		aM: 'Auth mocker'
 	}
 	]);
