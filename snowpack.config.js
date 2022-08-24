@@ -4,12 +4,10 @@
 /** @type {import("snowpack").SnowpackUserConfig } */
 module.exports = {
   mount: {
-    "public": "/portfolio/",
-    "src": "/dist"
+    public: '/',
+    src: '/dist',
   },
-  plugins: [
-    'snowpack-plugin-elm'  
-  ],
+  plugins: ['snowpack-plugin-elm'],
   packageOptions: {
     /* ... */
   },
@@ -17,6 +15,7 @@ module.exports = {
     /* ... */
   },
   buildOptions: {
-    out: "docs"
+    baseUrl: '/portfolio/',
+    out: 'docs',
   },
-};
+}
