@@ -61,7 +61,7 @@ typewrittenTexts =
 cards : List CardInfo
 cards =
     [ { title = "Restaurant list"
-      , href = "https://restaurant.jeaciaz.dev/"
+      , href = "https://jeaciaz.github.io/restaurant-list/"
       , githubHref = "https://github.com/Jeaciaz/restaurant-list"
       , desc = "A simplistic table with a list of Moscow restaurants recommended by a colleague of mine."
       , techStack =
@@ -70,7 +70,7 @@ cards =
             ]
       }
     , { title = "Auth mocker"
-      , href = "https://auth-mocker.jeaciaz.dev/"
+      , href = "https://jeaciaz.github.io/auth-mocker/"
       , githubHref = "https://github.com/Jeaciaz/auth-mocker"
       , desc = "Implementation of an auth form design I found exciting."
       , techStack =
