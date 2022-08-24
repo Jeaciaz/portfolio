@@ -6232,7 +6232,7 @@ var $author$project$Main$cards = _List_fromArray(
 		{
 		aw: 'A simplistic table with a list of Moscow restaurants recommended by a colleague of mine.',
 		ax: 'https://github.com/Jeaciaz/restaurant-list',
-		az: 'https://restaurant.jeaciaz.dev/',
+		az: 'https://jeaciaz.github.io/restaurant-list/',
 		aJ: _List_fromArray(
 			['HTML + CSS (Bootstrap)', 'Vanilla JS']),
 		aM: 'Restaurant list'
@@ -6240,7 +6240,7 @@ var $author$project$Main$cards = _List_fromArray(
 		{
 		aw: 'Implementation of an auth form design I found exciting.',
 		ax: 'https://github.com/Jeaciaz/auth-mocker',
-		az: 'https://auth-mocker.jeaciaz.dev/',
+		az: 'https://jeaciaz.github.io/auth-mocker/',
 		aJ: _List_fromArray(
 			['React', 'PostCSS Modules', 'Vite']),
 		aM: 'Auth mocker'
